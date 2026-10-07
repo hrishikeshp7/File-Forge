@@ -1,0 +1,99 @@
+name: Android
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      # Signing secrets are not available to pull requests from forks, so release steps skip there.
+      CAN_SIGN: ${{ github.event_name != 'pull_request' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Build web app and sync into Android project
+        run: |
+          npm ci
+          npm run build
+          npx cap sync android
+
+      - name: Version
+        id: ver
+        run: echo "name=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Build debug APK
+        working-directory: android
+        run: ./gradlew assembleDebug -PversionCode=${{ github.run_number }} -PversionName=${{ steps.ver.outputs.name }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: file-forge-debug-apk
+          path: android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+
+      - name: Decode signing keystore
+        if: env.CAN_SIGN == 'true'
+        run: |
+          # Outside the workspace so no artifact glob can ever pick it up.
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/release.keystore"
+          echo "KEYSTORE_PATH=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
+
+      - name: Build signed release APK and AAB
+        if: env.CAN_SIGN == 'true'
+        working-directory: android
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: ./gradlew assembleRelease bundleRelease -PversionCode=${{ github.run_number }} -PversionName=${{ steps.ver.outputs.name }}
+
+      - name: Verify the release APK is signed
+        if: env.CAN_SIGN == 'true'
+        run: |
+          shopt -s nullglob
+          apks=(android/app/build/outputs/apk/release/*.apk)
+          [ ${#apks[@]} -eq 1 ] || { echo "expected exactly one release APK, found ${#apks[@]}"; exit 1; }
+          case "${apks[0]}" in *unsigned*) echo "release APK is unsigned: signing did not apply"; exit 1;; esac
+          APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
+          "$APKSIGNER" verify --verbose --print-certs "${apks[0]}" | tee "$RUNNER_TEMP/certs.txt"
+          grep -i "SHA-256 digest" "$RUNNER_TEMP/certs.txt" | head -1
+
+      - uses: actions/upload-artifact@v4
+        if: env.CAN_SIGN == 'true'
+        with:
+          name: file-forge-release-apk
+          path: android/app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v4
+        if: env.CAN_SIGN == 'true'
+        with:
+          name: file-forge-release-aab
+          path: android/app/build/outputs/bundle/release/*.aab
+          if-no-files-found: error
