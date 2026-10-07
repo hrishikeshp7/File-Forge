@@ -15,15 +15,17 @@ function toBase64(blob: Blob): Promise<string> {
   })
 }
 
-// ponytail: base64 round-trip holds ~2.3x the file in memory; fine to a few hundred MB.
-// Upgrade path: chunked appendFile writes when video output lands.
+// Written in 3 MB slices (a multiple of 3 so each slice's base64 concatenates cleanly): a 300 MB video as one
+// base64 string would exhaust the WebView's memory. ponytail: unverified on a real device; still copies via the JS bridge.
+const CHUNK = 3 * 1024 * 1024
+
 export async function saveOutput(blob: Blob, filename: string): Promise<void> {
   if (isNative) {
-    const { uri } = await Filesystem.writeFile({
-      path: filename,
-      data: await toBase64(blob),
-      directory: Directory.Cache,
-    })
+    for (let off = 0; off < blob.size || off === 0; off += CHUNK) {
+      const args = { path: filename, data: await toBase64(blob.slice(off, off + CHUNK)), directory: Directory.Cache }
+      await (off === 0 ? Filesystem.writeFile(args) : Filesystem.appendFile(args))
+    }
+    const { uri } = await Filesystem.getUri({ path: filename, directory: Directory.Cache })
     await Share.share({ title: filename, url: uri, dialogTitle: 'Save or share' })
     return
   }

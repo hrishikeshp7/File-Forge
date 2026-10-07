@@ -3,8 +3,8 @@ export interface Result {
   name: string
   blob: Blob
   note?: string
-  /** Show an image preview (image tools). */
-  preview?: boolean
+  /** Inline preview of the result. */
+  preview?: 'image' | 'video' | 'audio'
   /** Set when this file failed; row shows the message instead of a Save button. */
   error?: string
 }

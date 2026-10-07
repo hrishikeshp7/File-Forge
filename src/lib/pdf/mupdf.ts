@@ -1,10 +1,12 @@
-import { runInWorker } from '../worker.ts'
+import { runInWorker, withBytes } from '../worker.ts'
 import type { Allow } from './mupdfRun.ts'
 
 export type { Allow }
 
-const job = (bytes: Uint8Array, rest: Record<string, unknown>) =>
-  runInWorker<Uint8Array>(() => new Worker(new URL('./mupdf.worker.ts', import.meta.url), { type: 'module' }), { bytes, ...rest })
+const job = (bytes: Uint8Array, rest: Record<string, unknown>) => {
+  const { bytes: copy, transfer } = withBytes(bytes)
+  return runInWorker<Uint8Array>(() => new Worker(new URL('./mupdf.worker.ts', import.meta.url), { type: 'module' }), { bytes: copy, ...rest }, { transfer })
+}
 
 export const protectPdf = (bytes: Uint8Array, password: string, allow: Allow) => job(bytes, { op: 'protect', password, allow })
 export const unlockPdf = (bytes: Uint8Array, password: string) => job(bytes, { op: 'unlock', password })

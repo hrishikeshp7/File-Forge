@@ -8,16 +8,18 @@
     "dev": "node scripts/copy-pdfjs-assets.mjs && node scripts/gen-notices.mjs && vite",
     "build": "node scripts/copy-pdfjs-assets.mjs && node scripts/gen-notices.mjs && tsc --noEmit && vite build",
     "preview": "vite preview",
-    "check": "node scripts/selfcheck.ts",
+    "check": "node scripts/selfcheck.ts && node scripts/selfcheck-media.ts",
     "tsc": "tsc --noEmit",
     "android:sync": "npm run build && cap sync android",
-    "android:open": "cap open android"
+    "android:open": "cap open android",
+    "check:fast": "node scripts/selfcheck.ts"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",
     "@capacitor/core": "^8.5.2",
     "@capacitor/filesystem": "^8.1.4",
     "@capacitor/share": "^8.0.3",
+    "@ffmpeg/core": "^0.12.10",
     "@okathira/ghostpdl-wasm": "^1.1.0",
     "fflate": "^0.8.3",
     "libheif-js": "^1.23.5",

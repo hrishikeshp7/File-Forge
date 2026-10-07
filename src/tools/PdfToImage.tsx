@@ -37,7 +37,7 @@ export default function PdfToImage() {
                 id: `p${idx}`,
                 name: `${baseName(file!.name)}-page-${idx + 1}.${ext}`,
                 blob: await renderPageBlob(doc, idx + 1, dpi, fmt),
-                preview: true,
+                preview: 'image' as const,
               })
             }
             return out

@@ -52,7 +52,7 @@ export function ImageBatch({ accept = IMAGE_ACCEPT, runLabel, opts, suffix = '',
               id,
               name: `${baseName(file.name)}${suffix}.${ext}`,
               blob,
-              preview: true,
+              preview: 'image' as const,
               note: keep
                 ? 'Already optimal, kept original'
                 : `${res.width}×${res.height} · ${

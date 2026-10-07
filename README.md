@@ -11,6 +11,9 @@ Offline file tools for web and Android (PDF + image today; video/audio planned).
 - **Image:** Compress, Resize (percent / pixels / presets)
 - **Convert:** Image Converter (JPG, PNG, WebP, BMP, ICO), HEIC to JPG/PNG, PNG to JPG, JPG to PNG, WebP to JPG/PNG, SVG to PNG, Image to PDF, PDF to Image
 
+- **Video:** Compress, Convert (MP4/WebM/MKV/MOV/AVI), Trim (with preview), Merge, Resize, Rotate/Mirror, Speed, Mute, Video to GIF, Video Frames
+- **Audio:** Extract Audio, Audio Converter (MP3/M4A/WAV/OGG/Opus/FLAC), Compress, Trim, Merge
+
 Every image tool also accepts HEIC/HEIF and TIFF input (decoded with libheif / UTIF).
 
 ## Develop
@@ -42,6 +45,9 @@ Write a component in `src/tools/`, add one line to `src/tools/registry.ts`. Shar
 - PDF compress runs Ghostscript (WebAssembly, ~15 MB) in a throwaway Web Worker: downsamples and re-encodes all image types, dedupes images, subsets fonts. Text stays selectable.
 - Android save path (share sheet) is unverified on a real device. Direct save to Downloads may need a SAF create-document flow.
 - Protect / Unlock / Organize run on MuPDF (WebAssembly, ~10 MB) in a worker. Passwords cannot contain a comma (MuPDF option-string limit). Unlock needs the password; it does not crack anything.
+- Video/audio run on FFmpeg compiled to WebAssembly (`@ffmpeg/core`, single-threaded, ~31 MB) in a worker, with a Cancel button. Inputs are mounted (not copied); outputs are held in memory. Measured in desktop Chromium: 720p30 H.264 compresses at ~3× realtime; a 1.5 GB stream copy still succeeds. **Phones will be slower and have less memory.** Android uses this same path (no native FFmpeg yet).
+- Not offered: HEVC/H.265 output (libx265 hangs in the single-threaded build), VP9 (too slow; WebM uses VP8), JPEG frames straight from ffmpeg (its MJPEG encoder crashes in this build; frames are PNG, JPG is made with the canvas). HEVC *input* decoding is untested here (no sample file).
+- H.264/AAC/MP3 encoders may need patent licenses when you distribute commercially in some countries; this is not legal advice.
 - Other PDF tools reject encrypted files with a link to Unlock.
 - Watermark text is rendered on a canvas, so any script works but the mark is an image, not selectable text. Page numbers use Helvetica (Latin only).
 - AVIF output is not offered (browsers cannot encode it from canvas); AVIF input works where the WebView decodes it.

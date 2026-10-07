@@ -22,12 +22,14 @@ function visit(name, from) {
   const key = `${pkg.name}@${pkg.version}`
   if (seen.has(key)) return
   const file = readdirSync(dir).find((f) => /^(licen[cs]e|copying|notice)(\.|$)/i.test(f))
+  const spdx = typeof pkg.license === 'string' ? pkg.license.replace(/-or-later$|-only$/, '') : ''
+  const bundled = join('licenses', `${spdx}.txt`) // fallback for packages that ship no license text (e.g. @ffmpeg/core)
   seen.set(key, {
     name: pkg.name,
     version: pkg.version,
     license: typeof pkg.license === 'string' ? pkg.license : (pkg.license?.type ?? 'see package'),
     homepage: pkg.homepage ?? (typeof pkg.repository === 'string' ? pkg.repository : pkg.repository?.url ?? '').replace(/^git\+|\.git$/g, ''),
-    text: file ? readFileSync(join(dir, file), 'utf8').trim() : '',
+    text: file ? readFileSync(join(dir, file), 'utf8').trim() : existsSync(bundled) ? readFileSync(bundled, 'utf8').trim() : '',
   })
   for (const dep of Object.keys({ ...pkg.dependencies, ...pkg.optionalDependencies })) visit(dep, dir)
 }

@@ -19,15 +19,16 @@ export default function PdfCompress() {
       runLabel="Compress PDFs"
       canRun={files.items.length > 0}
       {...r}
+      cancellable
       onRun={() =>
-        r.run(async (report) => {
+        r.run(async (report, signal) => {
           const out = []
           for (const [i, { id, file }] of files.items.entries()) {
             const label = `${file.name} (${i + 1}/${files.items.length})`
             const input = await bytesOf(file)
             let bytes: Uint8Array
             try {
-              bytes = await compressPdf(input, level, (d, t) => report(d, t, label))
+              bytes = await compressPdf(input, level, (d, t) => report(d, t, label), signal)
             } catch (e) {
               out.push({ id, name: file.name, blob: file, error: friendlyError(e) })
               continue

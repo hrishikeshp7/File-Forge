@@ -12,11 +12,12 @@ function Row({ r }: { r: Result }) {
   const [saved, setSaved] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const url = useMemo(() => (r.preview ? URL.createObjectURL(r.blob) : null), [r])
+  const media = r.preview === 'video' || r.preview === 'audio'
   useEffect(() => () => void (url && URL.revokeObjectURL(url)), [url])
 
   return (
-    <li className="row">
-      {url && <img className="thumb" src={url} alt="" />}
+    <li className={`row${media ? ' media' : ''}`}>
+      {url && r.preview === 'image' && <img className="thumb" src={url} alt="" />}
       <span className="row-main">
         <span className="row-name">{r.name}</span>
         <span className="row-sub">
@@ -40,6 +41,8 @@ function Row({ r }: { r: Result }) {
           {saved ? <Check size={16} /> : <Download size={16} />} {saved ? 'Saved' : 'Save'}
         </button>
       )}
+      {url && r.preview === 'video' && <video className="player" src={url} controls preload="metadata" playsInline />}
+      {url && r.preview === 'audio' && <audio className="player" src={url} controls preload="metadata" />}
     </li>
   )
 }

@@ -14,10 +14,13 @@ interface Props {
   error: string | null
   results: Result[]
   onRun: () => void
+  /** Aborts the running job. Only shown for tools whose job actually listens to the abort signal. */
+  cancel?: () => void
+  cancellable?: boolean
 }
 
 /** Common bottom half of every tool: run button, progress, error, results. */
-export function ToolShell({ children, runLabel, canRun, busy, progress, error, results, onRun }: Props) {
+export function ToolShell({ children, runLabel, canRun, busy, progress, error, results, onRun, cancel, cancellable }: Props) {
   const pct = progress && progress.total ? Math.round((progress.done / progress.total) * 100) : null
   return (
     <div className="tool">
@@ -27,6 +30,7 @@ export function ToolShell({ children, runLabel, canRun, busy, progress, error, r
           <button className="btn primary big" disabled={busy} onClick={onRun}>
             {busy && <Loader2 size={18} className="spin" />} {busy ? 'Working…' : runLabel}
           </button>
+          {busy && cancel && cancellable && <button className="btn secondary big" onClick={cancel}>Cancel</button>}
         </div>
       )}
       {busy && (
