@@ -7,8 +7,8 @@ Offline file tools for web and Android (PDF + image today; video/audio planned).
 
 ## Tools
 
-- **PDF:** Merge, Split (range / every N / each page), Compress (Ghostscript: 4 levels), Rotate and Organize (page previews: reorder, delete, duplicate), Watermark (text in any script, or image), Page Numbers, Protect (AES-256, permissions), Unlock
-- **Image:** Compress, Resize (percent / pixels / presets)
+- **PDF:** Merge, Split (range / every N / each page), Compress (Ghostscript: 4 levels), Rotate and Organize (page previews: reorder, delete, duplicate), Sign (draw / type / upload a signature picture), Crop, Watermark (text in any script, or image), Page Numbers, Properties (edit or strip title/author/XMP), Flatten (lock forms and annotations), Protect (AES-256, permissions), Unlock
+- **Image:** Compress, Resize (percent / pixels / presets), Crop (free or fixed ratio, mouse and touch), Rotate & Flip, Watermark (text or logo), Remove Photo Metadata (lossless for JPEG/PNG)
 - **Convert:** Image Converter (JPG, PNG, WebP, BMP, ICO), HEIC to JPG/PNG, PNG to JPG, JPG to PNG, WebP to JPG/PNG, SVG to PNG, Image to PDF, PDF to Image
 
 - **Video:** Compress, Convert (MP4/WebM/MKV/MOV/AVI), Trim (with preview), Merge, Resize, Rotate/Mirror, Speed, Mute, Video to GIF, Video Frames
@@ -48,6 +48,8 @@ Write a component in `src/tools/`, add one line to `src/tools/registry.ts`. Shar
 - Video/audio run on FFmpeg compiled to WebAssembly (`@ffmpeg/core`, single-threaded, ~31 MB) in a worker, with a Cancel button. Inputs are mounted (not copied); outputs are held in memory. Measured in desktop Chromium: 720p30 H.264 compresses at ~3× realtime; a 1.5 GB stream copy still succeeds. **Phones will be slower and have less memory.** Android uses this same path (no native FFmpeg yet).
 - Not offered: HEVC/H.265 output (libx265 hangs in the single-threaded build), VP9 (too slow; WebM uses VP8), JPEG frames straight from ffmpeg (its MJPEG encoder crashes in this build; frames are PNG, JPG is made with the canvas). HEVC *input* decoding is untested here (no sample file).
 - H.264/AAC/MP3 encoders may need patent licenses when you distribute commercially in some countries; this is not legal advice.
+- **Sign PDF places a picture of your signature. It is not a certified/cryptographic digital signature** and carries no legal verification. **Crop PDF** can permanently delete the content outside the box (text character by character, image pixels, drawings fully outside; via MuPDF redaction. Drawings that cross the edge stay). Untick that option and it only sets the crop box, leaving the hidden area recoverable.
+- Remove Photo Metadata cuts Exif/XMP/IPTC/comments out of JPEG and PNG without re-encoding (colour profile kept, rotated photos stay upright); other formats are re-encoded.
 - Other PDF tools reject encrypted files with a link to Unlock.
 - Watermark text is rendered on a canvas, so any script works but the mark is an image, not selectable text. Page numbers use Helvetica (Latin only).
 - AVIF output is not offered (browsers cannot encode it from canvas); AVIF input works where the WebView decodes it.

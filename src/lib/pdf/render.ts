@@ -35,6 +35,12 @@ async function renderToCanvas(doc: PdfDoc, pageNo: number, scale: number) {
 const toBlob = (c: HTMLCanvasElement, type: string, q?: number) =>
   new Promise<Blob>((res, rej) => c.toBlob((b) => (b ? res(b) : rej(new Error('Encode failed'))), type, q))
 
+/** Page preview as an object URL plus the page's visible size in PDF points (what crop/placement fractions refer to). */
+export async function renderPreview(doc: PdfDoc, pageNo: number, side: number): Promise<{ url: string; width: number; height: number }> {
+  const { width, height } = (await doc.getPage(pageNo)).getViewport({ scale: 1 })
+  return { url: await renderThumb(doc, pageNo, side), width, height }
+}
+
 /** Thumbnail as an object URL (caller revokes). `side` = longest edge in px. */
 export async function renderThumb(doc: PdfDoc, pageNo: number, side: number): Promise<string> {
   const page = await doc.getPage(pageNo)

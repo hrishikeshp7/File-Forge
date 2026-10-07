@@ -1,4 +1,5 @@
 import { decodeImage } from './decode.ts'
+import { pixelRect, type Rect } from '../rect.ts'
 
 export type OutFormat = 'image/jpeg' | 'image/png' | 'image/webp' | 'image/bmp' | 'image/x-icon'
 export const EXT: Record<string, string> = {
@@ -22,8 +23,26 @@ export interface ImageOptions {
   scale?: number
   /** With both width and height: fit inside that box keeping aspect (may upscale) instead of stretching. */
   contain?: boolean
+  /** Crop first, as fractions of the (EXIF-oriented) picture. */
+  crop?: Rect
+  /** Then turn clockwise and/or mirror the result. */
+  rotate?: 0 | 90 | 180 | 270
+  flipH?: boolean
+  flipV?: boolean
+  /** Drawn last, on top (watermark). */
+  overlay?: Overlay
   /** Apply EXIF rotation (default true). Off for images embedded in PDFs, which ignore EXIF. */
   exif?: boolean
+}
+
+export interface Overlay {
+  source: CanvasImageSource & { width: number; height: number }
+  /** Width as a fraction of the output width. */
+  scale: number
+  opacity: number
+  /** Degrees counter-clockwise. */
+  angle: number
+  position: 'center' | 'tl' | 'tr' | 'bl' | 'br' | 'tile'
 }
 
 export interface ImageResult {
@@ -98,10 +117,34 @@ function keepType(file: Blob): OutFormat {
   return /heic|heif/i.test(file.type) || /\.(heic|heif)$/i.test((file as File).name ?? '') ? 'image/jpeg' : 'image/png'
 }
 
+function drawOverlay(ctx: CanvasRenderingContext2D, W: number, H: number, o: Overlay) {
+  const w = W * o.scale
+  const h = (w * o.source.height) / o.source.width
+  const margin = Math.min(W, H) * 0.03
+  const at = (cx: number, cy: number) => {
+    ctx.save()
+    ctx.globalAlpha = o.opacity
+    ctx.translate(cx, cy)
+    ctx.rotate((-o.angle * Math.PI) / 180)
+    ctx.drawImage(o.source, -w / 2, -h / 2, w, h)
+    ctx.restore()
+  }
+  if (o.position === 'tile') {
+    const step = Math.max(w, h) * 1.5
+    for (let y = step / 2; y < H + step / 2; y += step) for (let x = step / 2; x < W + step / 2; x += step) at(x, y)
+    return
+  }
+  const cx = o.position === 'center' ? W / 2 : o.position.endsWith('l') ? margin + w / 2 : W - margin - w / 2
+  const cy = o.position === 'center' ? H / 2 : o.position.startsWith('t') ? margin + h / 2 : H - margin - h / 2
+  at(cx, cy)
+}
+
 export async function processImage(file: Blob, opts: ImageOptions): Promise<ImageResult> {
   const bmp = await decodeImage(file, opts.exif !== false)
   try {
-    const fit = fitSize(bmp.width, bmp.height, opts)
+    const { sx, sy, sw, sh } = opts.crop ? pixelRect(opts.crop, bmp.width, bmp.height) : { sx: 0, sy: 0, sw: bmp.width, sh: bmp.height }
+    const quarter = opts.rotate === 90 || opts.rotate === 270
+    const fit = fitSize(quarter ? sh : sw, quarter ? sw : sh, opts)
     const type: OutFormat =
       opts.format === 'keep' ? keepType(file) : opts.format
     const ico = type === 'image/x-icon'
@@ -115,13 +158,20 @@ export async function processImage(file: Blob, opts: ImageOptions): Promise<Imag
     }
     ctx.imageSmoothingQuality = 'high'
     if (ico) {
-      const k = Math.min(side / bmp.width, side / bmp.height)
-      const w = Math.round(bmp.width * k)
-      const h = Math.round(bmp.height * k)
-      ctx.drawImage(bmp, Math.round((side - w) / 2), Math.round((side - h) / 2), w, h)
+      const k = Math.min(side / sw, side / sh)
+      const w = Math.round(sw * k)
+      const h = Math.round(sh * k)
+      ctx.drawImage(bmp, sx, sy, sw, sh, Math.round((side - w) / 2), Math.round((side - h) / 2), w, h)
       return { blob: await encodeIco(await encode(canvas, 'image/png', 1), side), width, height }
     }
-    ctx.drawImage(bmp, 0, 0, width, height)
+    // Mirror applies to the turned picture, so scale() is set before rotate() (canvas transforms apply last-set first).
+    ctx.save()
+    ctx.translate(width / 2, height / 2)
+    ctx.scale(opts.flipH ? -1 : 1, opts.flipV ? -1 : 1)
+    ctx.rotate(((opts.rotate ?? 0) * Math.PI) / 180)
+    ctx.drawImage(bmp, sx, sy, sw, sh, quarter ? -height / 2 : -width / 2, quarter ? -width / 2 : -height / 2, quarter ? height : width, quarter ? width : height)
+    ctx.restore()
+    if (opts.overlay) drawOverlay(ctx, width, height, opts.overlay)
     if (type === 'image/bmp') return { blob: encodeBmp(ctx, width, height), width, height }
     return { blob: await encode(canvas, type, opts.quality), width, height }
   } finally {

@@ -1,5 +1,5 @@
 import { lazy, type ComponentType, type LazyExoticComponent } from 'react'
-import { AudioLines, Clapperboard, Film, Gauge, ImagePlay, Layers, Music, Rotate3d, Scaling as ScaleIcon, VolumeX, FileAudio, Camera, Combine, Hash, LayoutGrid, Lock, LockOpen, Stamp, FileImage, FileOutput, Image as ImageIcon, ImageDown, Images, Repeat2, RotateCw, Scaling, Scissors, Shrink, type LucideIcon } from 'lucide-react'
+import { FileCheck2, FileText, PenLine, EyeOff, FlipHorizontal2, Crop, AudioLines, Clapperboard, Film, Gauge, ImagePlay, Layers, Music, Rotate3d, Scaling as ScaleIcon, VolumeX, FileAudio, Camera, Combine, Hash, LayoutGrid, Lock, LockOpen, Stamp, FileImage, FileOutput, Image as ImageIcon, ImageDown, Images, Repeat2, RotateCw, Scaling, Scissors, Shrink, type LucideIcon } from 'lucide-react'
 
 export type Category = 'pdf' | 'image' | 'convert' | 'video' | 'audio'
 
@@ -35,8 +35,16 @@ export const TOOLS: ToolDef[] = [
   { id: 'pdf-organize', name: 'Organize PDF', desc: 'Reorder, delete, duplicate pages', category: 'pdf', icon: LayoutGrid, Component: lazy(() => import('./PdfOrganize.tsx')) },
   { id: 'pdf-watermark', name: 'Watermark PDF', desc: 'Text or image on every page', category: 'pdf', icon: Stamp, Component: lazy(() => import('./PdfWatermark.tsx')) },
   { id: 'pdf-page-numbers', name: 'Page Numbers', desc: 'Number the pages of a PDF', category: 'pdf', icon: Hash, Component: lazy(() => import('./PdfPageNumbers.tsx')) },
+  { id: 'pdf-sign', name: 'Sign PDF', desc: 'Draw, type or upload a signature', category: 'pdf', icon: PenLine, Component: lazy(() => import('./PdfSign.tsx')) },
+  { id: 'pdf-crop', name: 'Crop PDF', desc: 'Keep only the area you choose', category: 'pdf', icon: Crop, Component: lazy(() => import('./PdfCrop.tsx')) },
+  { id: 'pdf-metadata', name: 'PDF Properties', desc: 'Edit or remove title, author…', category: 'pdf', icon: FileText, Component: lazy(() => import('./PdfMetadata.tsx')) },
+  { id: 'pdf-flatten', name: 'Flatten PDF', desc: 'Lock forms and annotations', category: 'pdf', icon: FileCheck2, Component: lazy(() => import('./PdfFlatten.tsx')) },
   { id: 'pdf-protect', name: 'Protect PDF', desc: 'Password with AES-256', category: 'pdf', icon: Lock, Component: lazy(() => import('./PdfProtect.tsx')) },
   { id: 'pdf-unlock', name: 'Unlock PDF', desc: 'Remove password and restrictions', category: 'pdf', icon: LockOpen, Component: lazy(() => import('./PdfUnlock.tsx')) },
+  { id: 'image-crop', name: 'Crop Image', desc: 'Drag a box, free or fixed ratio', category: 'image', icon: Crop, Component: lazy(() => import('./ImageCrop.tsx')) },
+  { id: 'image-rotate', name: 'Rotate & Flip Image', desc: 'Turn or mirror photos', category: 'image', icon: FlipHorizontal2, Component: lazy(() => import('./ImageRotate.tsx')) },
+  { id: 'image-watermark', name: 'Watermark Image', desc: 'Text or logo on photos', category: 'image', icon: Stamp, Component: lazy(() => import('./ImageWatermark.tsx')) },
+  { id: 'image-strip', name: 'Remove Photo Metadata', desc: 'Strip GPS and camera info, losslessly', category: 'image', icon: EyeOff, Component: lazy(() => import('./ImageStrip.tsx')) },
   { id: 'image-compress', name: 'Compress Image', desc: 'JPG, PNG, WebP — smaller files', category: 'image', icon: ImageDown, Component: lazy(() => import('./ImageCompress.tsx')) },
   { id: 'image-resize', name: 'Resize Image', desc: 'By percent or exact pixels', category: 'image', icon: Scaling, Component: lazy(() => import('./ImageResize.tsx')) },
   { id: 'image-convert', name: 'Image Converter', desc: 'HEIC, WebP, TIFF, SVG → JPG, PNG, WebP, BMP, ICO', category: 'convert', icon: Repeat2, Component: convert },

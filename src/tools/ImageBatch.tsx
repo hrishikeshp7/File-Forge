@@ -19,12 +19,14 @@ interface Props {
   keepIfLarger?: boolean
   /** Show the % size change (compress/resize). Off for format conversion, where it is just noise. */
   showSavings?: boolean
+  /** Async setup before the batch starts (e.g. rendering a watermark); its result is merged into `opts`. */
+  prepare?: () => Promise<Partial<ImageOptions>>
   /** Rendered once files are chosen: the tool's option controls. */
   children: (files: File[]) => ReactNode
 }
 
 /** Shared flow for image compress / resize / convert: many files in, many images out. */
-export function ImageBatch({ accept = IMAGE_ACCEPT, runLabel, opts, suffix = '', keepIfLarger, showSavings, children }: Props) {
+export function ImageBatch({ accept = IMAGE_ACCEPT, runLabel, opts, suffix = '', keepIfLarger, showSavings, prepare, children }: Props) {
   const files = useFiles(true)
   const r = useRunner()
 
@@ -35,12 +37,13 @@ export function ImageBatch({ accept = IMAGE_ACCEPT, runLabel, opts, suffix = '',
       {...r}
       onRun={() =>
         r.run(async (report) => {
+          const extra = (await prepare?.()) ?? {}
           const out = []
           for (const [i, { id, file }] of files.items.entries()) {
             report(i, files.items.length, file.name)
             let res
             try {
-              res = await processImage(file, opts)
+              res = await processImage(file, { ...opts, ...extra })
             } catch {
               out.push({ id, name: file.name, blob: file, error: 'Could not read this image (corrupt or unsupported)' })
               continue
@@ -60,6 +63,7 @@ export function ImageBatch({ accept = IMAGE_ACCEPT, runLabel, opts, suffix = '',
                   }was ${formatBytes(file.size)}`,
             })
           }
+          if (extra.overlay && 'close' in extra.overlay.source) (extra.overlay.source as ImageBitmap).close()
           return out
         })
       }

@@ -8,6 +8,12 @@ import { gsCompress } from '../src/lib/pdf/gsRun.ts'
 import { imagesToPdf } from '../src/lib/pdf/fromImages.ts'
 import { organizePdf, protectPdf, unlockPdf } from '../src/lib/pdf/mupdfRun.ts'
 import { addPageNumbers, addWatermark } from '../src/lib/pdf/mark.ts'
+import { readExif, stripJpeg, stripPng } from '../src/lib/image/exif.ts'
+import { readMeta, writeMeta } from '../src/lib/pdf/meta.ts'
+import { eraseOutside, flattenPdf } from '../src/lib/pdf/mupdfRun.ts'
+import { addPicture, cropPages } from '../src/lib/pdf/mark.ts'
+import { initialRect, moveRect, pixelRect, resizeRect } from '../src/lib/rect.ts'
+import { readFileSync } from 'node:fs'
 import { fitSize } from '../src/lib/image/process.ts'
 
 
@@ -183,6 +189,165 @@ const dark = (x0: number, y0: number, x1: number, y1: number) => {
 assert.ok(dark(10, r.h - 52, 40, r.h - 8) > 20, 'number sits bottom-left of rotated page')
 assert.equal(dark(0, 0, 100, 60), 0, 'nothing top-left')
 await assert.rejects(addPageNumbers(merged, { format: 'पेज {n}', position: 'bc', start: 1, size: 12, margin: 10 }), /Latin/)
+
+// ---- drag-box geometry ----
+const R = { x: 0.2, y: 0.2, w: 0.4, h: 0.4 }
+assert.deepEqual(moveRect(R, 1, 1), { x: 0.6, y: 0.6, w: 0.4, h: 0.4 }, 'move clamps to the image')
+assert.deepEqual(moveRect(R, -1, -1), { x: 0, y: 0, w: 0.4, h: 0.4 })
+let r2 = resizeRect(R, 'se', 5, 5, { min: 0.05 }); assert.deepEqual([r2.x + r2.w, r2.y + r2.h], [1, 1], 'free resize clamps at the edge')
+r2 = resizeRect(R, 'nw', 5, 5, { min: 0.05 }); assert.ok(Math.abs(r2.w - 0.05) < 1e-9 && Math.abs(r2.x + r2.w - 0.6) < 1e-9, 'min size, opposite edge fixed')
+for (const h of ['nw', 'ne', 'se', 'sw'] as const) for (const [dx, dy] of [[0.3, 0.1], [-0.5, 0.4], [0.9, 0.9], [-0.9, -0.9]]) {
+  const q = resizeRect(R, h, dx, dy, { min: 0.05, aspect: 2 })
+  assert.ok(Math.abs(q.w / q.h - 2) < 1e-9, `aspect kept ${h} ${dx},${dy}`)
+  assert.ok(q.x >= -1e-9 && q.y >= -1e-9 && q.x + q.w <= 1 + 1e-9 && q.y + q.h <= 1 + 1e-9, `inside image ${h} ${dx},${dy}`)
+}
+const ir = initialRect(16 / 9 * (900 / 1600)); assert.ok(Math.abs(ir.w / ir.h - 16 / 9 * (900 / 1600)) < 1e-9 && ir.x + ir.w <= 1 && ir.y + ir.h <= 1)
+assert.deepEqual(pixelRect({ x: 0.333, y: 0.5, w: 0.5, h: 0.6 }, 100, 50), { sx: 33, sy: 25, sw: 50, sh: 25 })
+
+// ---- lossless metadata stripping ----
+const jpg = new Uint8Array(readFileSync(new URL('./fixtures/exif.jpg', import.meta.url)))
+const before = readExif(jpg)!
+assert.deepEqual([before.orientation, before.hasGps, before.make, before.date], [6, true, 'TestCam', '2026:01:02 03:04:05'])
+const sj = stripJpeg(jpg)
+const after = readExif(sj.bytes)!
+assert.equal(after.hasGps, false, 'GPS gone'); assert.equal(after.make, undefined, 'camera info gone'); assert.equal(after.orientation, 6, 'orientation kept so the photo stays upright')
+assert.ok(Buffer.from(sj.bytes).includes('ICC_PROFILE'), 'ICC colour profile kept')
+assert.ok(!Buffer.from(sj.bytes).includes('secret note'), 'comment removed')
+const sosAt = (b: Uint8Array) => { for (let i = 2; i + 1 < b.length; ) { if (b[i + 1] === 0xda) return i; i += 2 + ((b[i + 2] << 8) | b[i + 3]) } return -1 }
+assert.deepEqual(sj.bytes.subarray(sosAt(sj.bytes)), jpg.subarray(sosAt(jpg)), 'compressed image data is byte-identical')
+const mj = mu.Image && new mu.Image(sj.bytes); assert.deepEqual([mj.getWidth(), mj.getHeight()], [48, 32], 'result still decodes')
+assert.ok(sj.removed.includes('Exif incl. GPS location'))
+
+// Phone-style JPEG: no JFIF APP0, and a second complete picture (with its own Exif/GPS) appended after the main EOI
+{
+  const segEnd = (i: number) => i + 2 + ((jpg[i + 2] << 8) | jpg[i + 3])
+  assert.equal(jpg[3], 0xe0, 'fixture starts with JFIF APP0')
+  const noJfif = Uint8Array.from([...jpg.subarray(0, 2), ...jpg.subarray(segEnd(2))])
+  const phone = Uint8Array.from([...noJfif, ...jpg]) // main picture + embedded second picture
+  const out = stripJpeg(phone)
+  const text = Buffer.from(out.bytes)
+  assert.ok(!text.includes('TestCam') && !text.includes('Model X') && !text.includes('2026:01:02'), 'no camera/date bytes anywhere, including the appended picture')
+  assert.equal(readExif(out.bytes)?.hasGps, false, 'no GPS')
+  assert.equal(readExif(out.bytes)?.orientation, 6, 'orientation kept (minimal Exif inserted, no JFIF to follow)')
+  assert.ok(text.includes('ICC_PROFILE'), 'ICC kept')
+  assert.deepEqual([...out.bytes.subarray(-2)], [0xff, 0xd9], 'ends at the main EOI')
+  assert.ok(out.bytes.length < phone.length / 2 + 200 && out.removed.some((x) => x.includes('extra embedded')))
+  const mi = new mu.Image(out.bytes); assert.deepEqual([mi.getWidth(), mi.getHeight()], [48, 32], 'still decodes')
+  // JFXX thumbnail APP0 is dropped, JFIF kept
+  const jfxx = Uint8Array.from([0xff, 0xe0, 0, 16, ...'JFXX\0'.split('').map((c) => c.charCodeAt(0)), 0x10, 1, 1, 0, 0, 0, 0, 0, 0])
+  const withJfxx = Uint8Array.from([...jpg.subarray(0, segEnd(2)), ...jfxx, ...jpg.subarray(segEnd(2))])
+  assert.ok(!Buffer.from(stripJpeg(withJfxx).bytes).includes('JFXX') && Buffer.from(stripJpeg(withJfxx).bytes).includes('JFIF'))
+}
+
+const metaPng = new Uint8Array(readFileSync(new URL('./fixtures/meta.png', import.meta.url)))
+const sp = stripPng(metaPng)
+assert.ok(metaPng.length > sp.bytes.length && !Buffer.from(sp.bytes).includes('Someone') && !Buffer.from(sp.bytes).includes('eXIf'), 'png text and exif removed')
+assert.ok(Buffer.from(sp.bytes).includes('iCCP'), 'png colour profile kept')
+const mp = new mu.Image(sp.bytes); assert.deepEqual([mp.getWidth(), mp.getHeight()], [48, 32])
+
+// ---- PDF metadata ----
+{
+  const d = await PDFDocument.create(); d.addPage([200, 200]); d.setTitle('Old title'); d.setAuthor('Old author')
+  const xmp = d.context.stream('<x:xmpmeta><dc:title>Old title</dc:title></x:xmpmeta>', { Type: 'Metadata', Subtype: 'XML' })
+  d.catalog.set((await import('pdf-lib')).PDFName.of('Metadata'), d.context.register(xmp))
+  const src = await d.save()
+  const m0 = await readMeta(src); assert.deepEqual([m0.Title, m0.hasXmp], ['Old title', true])
+  const edited = await writeMeta(src, { Title: 'Neuer Titel ✓', Author: '' })
+  const m1 = await readMeta(edited)
+  assert.deepEqual([m1.Title, m1.Author, m1.hasXmp], ['Neuer Titel ✓', '', false], 'edit applied, stale XMP dropped')
+  assert.equal(m1.Producer, m0.Producer, 'untouched fields keep their value (no pdf-lib stamp)')
+  const reader = mu.Document.openDocument(edited, 'application/pdf')
+  assert.equal(reader.getMetaData('info:Title'), 'Neuer Titel ✓', 'second reader agrees')
+  const stripped = await writeMeta(src, {}, true)
+  const m2 = await readMeta(stripped)
+  assert.deepEqual([m2.Title, m2.Author, m2.Producer, m2.hasXmp], ['', '', '', false])
+  assert.equal(mu.Document.openDocument(stripped, 'application/pdf').getMetaData('info:Title') ?? '', '')
+}
+
+// ---- flatten (MuPDF bake) ----
+{
+  const d = await PDFDocument.create(); const pg = d.addPage([300, 200])
+  const form = d.getForm(); const f = form.createTextField('name'); f.setText('HELLOWORLD'); f.addToPage(pg, { x: 20, y: 120, width: 200, height: 40, borderWidth: 0 })
+  const src = await d.save()
+  const widgets = (b: Uint8Array) => (mu.Document.openDocument(b, 'application/pdf') as import('mupdf').PDFDocument).loadPage(0).getWidgets().length
+  assert.equal(widgets(src), 1)
+  const flat = flattenPdf(src)
+  assert.equal(widgets(flat), 0, 'no fields remain')
+  assert.ok(!Buffer.from(flat).includes('/AcroForm') || widgets(flat) === 0)
+  r = await render(flat)
+  let ink = 0
+  for (let y = 40; y < 80; y++) for (let x = 20; x < 220; x++) if (r.px(x, y)[0] < 100) ink++
+  assert.ok(ink > 40, `the typed value is still visible after flattening (${ink} dark px)`)
+}
+
+// ---- crop PDF ----
+{
+  const d = await PDFDocument.create(); d.addPage([400, 400]).drawRectangle({ x: 115, y: 115, width: 20, height: 20, color: (await import('pdf-lib')).rgb(1, 0, 0) })
+  const out = await cropPages(await d.save(), { x: 0.2, y: 0.5, w: 0.3, h: 0.3 })
+  r = await render(out)
+  assert.deepEqual([r.w, r.h], [120, 120], 'crop box size')
+  assert.ok(isRed(r.px(45, 75)), 'cropped content in the right place')
+  assert.deepEqual([r.w, r.h], [(await render(await gsCompress((h) => loadWASM(h), out, 'balanced'))).w, 120], 'Ghostscript compress keeps the crop')
+  // rotated page: visual 300x200, crop the bottom-right quarter; marker sits there
+  const rd = await PDFDocument.create(); const rp = rd.addPage([200, 300]); rp.setRotation((await import('pdf-lib')).degrees(90))
+  rp.drawRectangle({ x: 140, y: 215, width: 20, height: 20, color: (await import('pdf-lib')).rgb(1, 0, 0) }) // content (150,225) = visual (225, 50 from bottom)
+  r = await render(await cropPages(await rd.save(), { x: 0.5, y: 0.5, w: 0.5, h: 0.5 }))
+  assert.deepEqual([r.w, r.h], [150, 100], 'rotated page crop size')
+  assert.ok(isRed(r.px(75, 50)), 'rotated page: marker is centred in the crop')
+}
+
+// ---- picture/signature placement ----
+{
+  const flatPage = await PDFDocument.create(); flatPage.addPage([200, 300])
+  r = await render(await addPicture(await flatPage.save(), red, 1, [{ page: 0, cx: 0.25, cy: 0.75, w: 0.2 }]))
+  assert.ok(isRed(r.px(50, 225)), 'picture centred at (25%, 75% from top)')
+  assert.ok(isWhite(r.px(150, 50)))
+  const rotPage = await PDFDocument.create(); rotPage.addPage([200, 300]).setRotation((await import('pdf-lib')).degrees(90))
+  r = await render(await addPicture(await rotPage.save(), red, 1, [{ page: 0, cx: 0.25, cy: 0.75, w: 0.2 }]))
+  assert.deepEqual([r.w, r.h], [300, 200]); assert.ok(isRed(r.px(75, 150)), 'rotated page: same visual spot')
+}
+
+// ---- crop that really deletes what is outside ----
+{
+  const pdfLib = await import('pdf-lib')
+  const mkDoc = async (rotate: number) => {
+    const d = await PDFDocument.create(); const f = await d.embedFont(pdfLib.StandardFonts.Helvetica)
+    const p = d.addPage([400, 400]); if (rotate) p.setRotation(pdfLib.degrees(rotate))
+    p.drawText('SECRETOUTSIDE', { x: 20, y: 370, size: 20, font: f }) // top-left of the content
+    p.drawText('KEEPINSIDE', { x: 150, y: 190, size: 20, font: f })
+    p.drawImage(await d.embedPng(noisyPng(120)), { x: 10, y: 10, width: 120, height: 120 }) // bottom-left photo, to be cropped away
+    return d.save()
+  }
+  const textOf = (b: Uint8Array) => (mu.Document.openDocument(b, 'application/pdf') as import('mupdf').PDFDocument).loadPage(0).toStructuredText('preserve-whitespace').asText()
+  // unrotated: keep the middle band (x 100-300, y from top 140-240 → content y 160-260)
+  const src = await mkDoc(0)
+  const keep = { x: 0.25, y: 0.35, w: 0.5, h: 0.25 }
+  const erased = eraseOutside(src, keep)
+  assert.ok(textOf(erased).includes('KEEPINSIDE'), 'text inside the box is kept')
+  assert.ok(!textOf(erased).includes('SECRETOUTSIDE'), 'text outside is gone')
+  assert.ok(erased.length < src.length * 0.6, `image data outside is removed (${src.length} -> ${erased.length})`)
+  // the crop box can be thrown away afterwards and the deleted content does not come back
+  const cropped = await cropPages(erased, keep)
+  const stripped = await PDFDocument.load(cropped); stripped.getPage(0).node.delete(pdfLib.PDFName.of('CropBox'))
+  assert.ok(!textOf(await stripped.save()).includes('SECRETOUTSIDE'), 'still gone with the crop box removed')
+  r = await render(cropped); assert.deepEqual([r.w, r.h], [200, 100], 'crop box applied')
+  let ink = 0; for (let y = 0; y < r.h; y++) for (let x = 0; x < r.w; x++) if (r.px(x, y)[0] < 100) ink++
+  assert.ok(ink > 30, 'the kept text is still drawn')
+  // /Rotate 90: fractions refer to the visible page. KEEPINSIDE runs down the page at x≈190, y≈150..250 (from the top).
+  const keep90 = { x: 0.4, y: 0.3, w: 0.2, h: 0.4 }
+  const rot = eraseOutside(await mkDoc(90), keep90)
+  assert.ok(textOf(rot).includes('KEEPINSIDE'), 'rotated page: text inside kept whole')
+  assert.ok(!textOf(rot).includes('SECRETOUTSIDE'), 'rotated page: text outside gone')
+  assert.ok(rot.length < src.length * 0.6, 'rotated page: image outside removed')
+  // text touching the box edge is not lost: a title 4pt inside a tight margin crop survives, while a line cut by the edge keeps its visible part
+  const edge = await PDFDocument.create(); const ef = await edge.embedFont(pdfLib.StandardFonts.Helvetica); const ep = edge.addPage([600, 800])
+  ep.drawText('TITLE', { x: 50, y: 770, size: 24, font: ef }) // line box reaches ~30pt from the top
+  ep.drawText('CUTTHROUGHHERE', { x: 300, y: 400, size: 20, font: ef }) // box edge at x=360 slices through it
+  const edgeOut = eraseOutside(await edge.save(), { x: 0.05, y: 0.03, w: 0.55, h: 0.94 }) // keeps x 30..360, y 24..776
+  const et = textOf(edgeOut)
+  assert.ok(et.includes('TITLE'), 'title near the margin survives')
+  assert.ok(et.includes('CUTTH') && !et.includes('CUTTHROUGHHERE'), 'characters wholly outside are removed, visible ones stay: ' + JSON.stringify(et.trim()))
+}
 
 // image sizing
 assert.deepEqual(fitSize(4000, 2000, { maxWidth: 1000, maxHeight: 1000 }), { width: 1000, height: 500 })
