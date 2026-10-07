@@ -1,0 +1,44 @@
+{
+  "name": "file-forge",
+  "private": true,
+  "version": "0.1.0",
+  "license": "AGPL-3.0-or-later",
+  "type": "module",
+  "scripts": {
+    "dev": "node scripts/copy-pdfjs-assets.mjs && node scripts/gen-notices.mjs && vite",
+    "build": "node scripts/copy-pdfjs-assets.mjs && node scripts/gen-notices.mjs && tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "check": "node scripts/selfcheck.ts",
+    "tsc": "tsc --noEmit",
+    "android:sync": "npm run build && cap sync android",
+    "android:open": "cap open android"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.5.2",
+    "@capacitor/core": "^8.5.2",
+    "@capacitor/filesystem": "^8.1.4",
+    "@capacitor/share": "^8.0.3",
+    "@okathira/ghostpdl-wasm": "^1.1.0",
+    "fflate": "^0.8.3",
+    "libheif-js": "^1.23.5",
+    "lucide-react": "^1.52.0",
+    "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^6.4.299",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "react-router-dom": "^7.18.4",
+    "utif2": "^4.1.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.5.2",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.3"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hrishikeshp7/File-Forge.git"
+  }
+}

@@ -1,0 +1,12 @@
+node_modules
+dist
+.codegraph
+*.local
+android/app/build
+android/build
+android/.gradle
+android/local.properties
+android/app/src/main/assets/public
+android/capacitor-cordova-android-plugins
+public/pdfjs
+public/notices
