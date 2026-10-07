@@ -7,7 +7,7 @@ Offline file tools for web and Android (PDF + image today; video/audio planned).
 
 ## Tools
 
-- **PDF:** Merge, Split (range / every N / each page), Compress (Ghostscript: 4 levels), Rotate (page previews)
+- **PDF:** Merge, Split (range / every N / each page), Compress (Ghostscript: 4 levels), Rotate and Organize (page previews: reorder, delete, duplicate), Watermark (text in any script, or image), Page Numbers, Protect (AES-256, permissions), Unlock
 - **Image:** Compress, Resize (percent / pixels / presets)
 - **Convert:** Image Converter (JPG, PNG, WebP, BMP, ICO), HEIC to JPG/PNG, PNG to JPG, JPG to PNG, WebP to JPG/PNG, SVG to PNG, Image to PDF, PDF to Image
 
@@ -41,7 +41,9 @@ Write a component in `src/tools/`, add one line to `src/tools/registry.ts`. Shar
 
 - PDF compress runs Ghostscript (WebAssembly, ~15 MB) in a throwaway Web Worker: downsamples and re-encodes all image types, dedupes images, subsets fonts. Text stays selectable.
 - Android save path (share sheet) is unverified on a real device. Direct save to Downloads may need a SAF create-document flow.
-- Password-protected PDFs are rejected with a message (unlock tool not built yet; MuPDF is the plan for protect / unlock / repair).
+- Protect / Unlock / Organize run on MuPDF (WebAssembly, ~10 MB) in a worker. Passwords cannot contain a comma (MuPDF option-string limit). Unlock needs the password; it does not crack anything.
+- Other PDF tools reject encrypted files with a link to Unlock.
+- Watermark text is rendered on a canvas, so any script works but the mark is an image, not selectable text. Page numbers use Helvetica (Latin only).
 - AVIF output is not offered (browsers cannot encode it from canvas); AVIF input works where the WebView decodes it.
 
 ## License and AGPL obligations

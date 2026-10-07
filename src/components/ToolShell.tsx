@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { Link } from 'react-router-dom'
 import { Loader2 } from 'lucide-react'
 import type { Progress } from './useRunner.ts'
 import { ResultList } from './ResultList.tsx'
@@ -34,7 +35,11 @@ export function ToolShell({ children, runLabel, canRun, busy, progress, error, r
           {progress?.label && <span>{progress.label}</span>}
         </div>
       )}
-      {error && <div className="error" role="alert">{error}</div>}
+      {error && (
+        <div className="error" role="alert">
+          {error.split('Unlock PDF tool').flatMap((part, i) => (i ? [<Link key={i} to="/tool/pdf-unlock">Unlock PDF tool</Link>, part] : [part]))}
+        </div>
+      )}
       <ResultList results={results} />
     </div>
   )

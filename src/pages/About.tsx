@@ -16,7 +16,8 @@ interface Dep {
 
 // Corresponding source for bundled copyleft components that are not in node_modules form.
 const COPYLEFT = [
-  { name: 'Ghostscript 10.x (GhostPDL)', license: 'AGPL-3.0-or-later', src: 'https://ghostscript.com/releases/', note: 'WebAssembly build by okathira/ghostpdl-wasm' },
+  { name: 'Ghostscript 10.x (GhostPDL)', license: 'AGPL-3.0-or-later', src: 'https://ghostscript.com/releases/', note: 'WebAssembly build scripts: https://github.com/okathira/ghostpdl-wasm' },
+  { name: 'MuPDF', license: 'AGPL-3.0-or-later', src: 'https://github.com/ArtifexSoftware/mupdf.js', note: 'Artifex Software; engine source at https://mupdf.com/releases' },
   { name: 'libheif', license: 'LGPL-3.0', src: 'https://github.com/strukturag/libheif', note: 'via libheif-js; replaceable by rebuilding this app from source' },
 ]
 

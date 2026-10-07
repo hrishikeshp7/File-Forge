@@ -1,5 +1,5 @@
 import { lazy, type ComponentType, type LazyExoticComponent } from 'react'
-import { Combine, FileImage, FileOutput, Image as ImageIcon, ImageDown, Images, Repeat2, RotateCw, Scaling, Scissors, Shrink, type LucideIcon } from 'lucide-react'
+import { Combine, Hash, LayoutGrid, Lock, LockOpen, Stamp, FileImage, FileOutput, Image as ImageIcon, ImageDown, Images, Repeat2, RotateCw, Scaling, Scissors, Shrink, type LucideIcon } from 'lucide-react'
 
 export type Category = 'pdf' | 'image' | 'convert'
 
@@ -26,6 +26,11 @@ export const TOOLS: ToolDef[] = [
   { id: 'pdf-split', name: 'Split PDF', desc: 'Split by range, count or page', category: 'pdf', icon: Scissors, Component: lazy(() => import('./PdfSplit.tsx')) },
   { id: 'pdf-compress', name: 'Compress PDF', desc: 'Shrink file size', category: 'pdf', icon: Shrink, Component: lazy(() => import('./PdfCompress.tsx')) },
   { id: 'pdf-rotate', name: 'Rotate PDF', desc: 'Rotate pages with previews', category: 'pdf', icon: RotateCw, Component: lazy(() => import('./PdfRotate.tsx')) },
+  { id: 'pdf-organize', name: 'Organize PDF', desc: 'Reorder, delete, duplicate pages', category: 'pdf', icon: LayoutGrid, Component: lazy(() => import('./PdfOrganize.tsx')) },
+  { id: 'pdf-watermark', name: 'Watermark PDF', desc: 'Text or image on every page', category: 'pdf', icon: Stamp, Component: lazy(() => import('./PdfWatermark.tsx')) },
+  { id: 'pdf-page-numbers', name: 'Page Numbers', desc: 'Number the pages of a PDF', category: 'pdf', icon: Hash, Component: lazy(() => import('./PdfPageNumbers.tsx')) },
+  { id: 'pdf-protect', name: 'Protect PDF', desc: 'Password with AES-256', category: 'pdf', icon: Lock, Component: lazy(() => import('./PdfProtect.tsx')) },
+  { id: 'pdf-unlock', name: 'Unlock PDF', desc: 'Remove password and restrictions', category: 'pdf', icon: LockOpen, Component: lazy(() => import('./PdfUnlock.tsx')) },
   { id: 'image-compress', name: 'Compress Image', desc: 'JPG, PNG, WebP — smaller files', category: 'image', icon: ImageDown, Component: lazy(() => import('./ImageCompress.tsx')) },
   { id: 'image-resize', name: 'Resize Image', desc: 'By percent or exact pixels', category: 'image', icon: Scaling, Component: lazy(() => import('./ImageResize.tsx')) },
   { id: 'image-convert', name: 'Image Converter', desc: 'HEIC, WebP, TIFF, SVG → JPG, PNG, WebP, BMP, ICO', category: 'convert', icon: Repeat2, Component: convert },

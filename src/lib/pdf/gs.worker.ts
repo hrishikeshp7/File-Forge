@@ -10,8 +10,9 @@ self.onmessage = async (e: MessageEvent<{ bytes: Uint8Array; level: Level }>) =>
       e.data.level,
       (done, total) => self.postMessage({ type: 'progress', done, total }),
     )
-    self.postMessage({ type: 'done', bytes: out }, { transfer: [out.buffer] })
+    self.postMessage({ type: 'done', result: out }, { transfer: [out.buffer] })
   } catch (err) {
     self.postMessage({ type: 'error', message: err instanceof Error ? err.message : String(err) })
   }
 }
+self.postMessage({ type: 'ready' })
